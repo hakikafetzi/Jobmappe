@@ -1,0 +1,53 @@
+name: jobmappe
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-jobmappe}
+      POSTGRES_USER: ${DB_USER:-jobmappe}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jobmappe} -d ${DB_NAME:-jobmappe}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    image: ghcr.io/hakikafetzi/jobmappe-backend:${JOBMAPPE_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-jobmappe}
+      DB_USER: ${DB_USER:-jobmappe}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app
+      - data
+
+  frontend:
+    image: ghcr.io/hakikafetzi/jobmappe-frontend:${JOBMAPPE_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${JOBMAPPE_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app
+
+volumes:
+  db-data:
+
+networks:
+  app:
+  data:
+    internal: true
